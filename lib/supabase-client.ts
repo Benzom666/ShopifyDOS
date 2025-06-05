@@ -8,6 +8,12 @@ let supabaseInstance: ReturnType<typeof createClient> | null = null
 
 export const getSupabaseClient = () => {
   if (!supabaseInstance) {
+    if (!supabaseUrl || !supabaseAnonKey) {
+      console.error("Missing Supabase environment variables")
+      // Return a mock client or throw an error depending on your preference
+      throw new Error("Supabase environment variables are required")
+    }
+
     supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
         persistSession: true,

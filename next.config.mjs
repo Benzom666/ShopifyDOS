@@ -114,7 +114,6 @@ const nextConfig = {
   },
 
   // Performance optimizations
-  swcMinify: true,
   
   // Redirects for better SEO
   async redirects() {
