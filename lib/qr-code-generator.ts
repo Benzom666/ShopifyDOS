@@ -1,3 +1,5 @@
+import { generateOptimizedBarcode } from "./barcode-generator"
+
 export interface QRCodeOptions {
   size: number
   margin: number
@@ -115,10 +117,29 @@ function generateTextQRCode(orderNumber: string): string {
   return `data:image/svg+xml;base64,${btoa(svg)}`
 }
 
-// Generate simple barcode pattern (Code 128 style)
-export function generateBarcodePattern(text: string): string {
-  // Simple barcode representation using ASCII characters
-  // In a real implementation, you'd use a proper barcode library
+// Enhanced barcode generation using the new system
+export function generateBarcodePattern(
+  text: string,
+  scannerType: "handheld" | "fixed" | "mobile" | "industrial" = "handheld",
+): string {
+  try {
+    const result = generateOptimizedBarcode(text, scannerType)
+
+    // Log quality warnings for debugging
+    if (result.quality.warnings.length > 0) {
+      console.warn(`Barcode quality warnings for ${text}:`, result.quality.warnings)
+    }
+
+    return result.dataURL
+  } catch (error) {
+    console.error("Enhanced barcode generation failed, using fallback:", error)
+    return generateFallbackBarcode(text)
+  }
+}
+
+// Fallback barcode generation for compatibility
+function generateFallbackBarcode(text: string): string {
+  // Simple barcode representation using ASCII characters as fallback
   const patterns = {
     "0": "|||  | ||",
     "1": "||  ||| |",
@@ -169,6 +190,16 @@ export function generateBarcodePattern(text: string): string {
   barcode += " ||" // End pattern
 
   return barcode
+}
+
+// Generate industry-standard barcode for shipping labels
+export function generateShippingBarcode(orderNumber: string): string {
+  return generateBarcodePattern(orderNumber, "handheld")
+}
+
+// Generate mobile-optimized barcode for driver apps
+export function generateMobileBarcode(orderNumber: string): string {
+  return generateBarcodePattern(orderNumber, "mobile")
 }
 
 // Validate QR code data

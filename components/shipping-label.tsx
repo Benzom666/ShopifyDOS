@@ -2,6 +2,8 @@
 
 import { QRCodeSVG } from "qrcode.react"
 import { cn } from "@/lib/utils"
+import { generateShippingBarcode } from "@/lib/qr-code-generator"
+import { useState, useEffect } from "react"
 
 interface ShippingLabelProps {
   order: any
@@ -11,11 +13,26 @@ interface ShippingLabelProps {
     includeQR: boolean
     includeBarcode: boolean
     fontSize: "small" | "medium" | "large"
+    scannerOptimized?: boolean
   }
   className?: string
 }
 
 export function ShippingLabel({ order, labelConfig, className }: ShippingLabelProps) {
+  const [barcodeDataURL, setBarcodeDataURL] = useState<string>("")
+
+  useEffect(() => {
+    if (order?.order_number && labelConfig.includeBarcode) {
+      try {
+        const barcode = generateShippingBarcode(order.order_number)
+        setBarcodeDataURL(barcode)
+      } catch (error) {
+        console.error("Failed to generate barcode:", error)
+        setBarcodeDataURL("")
+      }
+    }
+  }, [order?.order_number, labelConfig.includeBarcode])
+
   if (!order) {
     return (
       <div className={cn("border rounded-lg p-4 bg-gray-50", className)}>
@@ -44,26 +61,6 @@ export function ShippingLabel({ order, labelConfig, className }: ShippingLabelPr
     trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://example.com"}/track/${order.order_number}`,
   })
 
-  const generateBarcode = (text: string) => {
-    // Simple barcode representation using CSS
-    const barcodePattern = text.split("").map((char, index) => {
-      const width = (char.charCodeAt(0) % 3) + 1
-      return (
-        <div
-          key={index}
-          className="bg-black inline-block"
-          style={{
-            width: `${width}px`,
-            height: "30px",
-            marginRight: "1px",
-          }}
-        />
-      )
-    })
-
-    return <div className="flex items-end justify-center">{barcodePattern}</div>
-  }
-
   return (
     <div
       className={cn(
@@ -80,10 +77,16 @@ export function ShippingLabel({ order, labelConfig, className }: ShippingLabelPr
             <div>
               <h1 className="font-bold text-lg">SHIPPING LABEL</h1>
               <p className="text-xs">Order: #{order.order_number}</p>
+              {labelConfig.scannerOptimized && <p className="text-xs text-green-600">Scanner Optimized</p>}
             </div>
             {labelConfig.includeQR && (
               <div className="flex-shrink-0">
-                <QRCodeSVG value={qrData} size={labelConfig.size === "small" ? 40 : 60} />
+                <QRCodeSVG
+                  value={qrData}
+                  size={labelConfig.size === "small" ? 40 : 60}
+                  level="H"
+                  includeMargin={true}
+                />
               </div>
             )}
           </div>
@@ -131,12 +134,29 @@ export function ShippingLabel({ order, labelConfig, className }: ShippingLabelPr
           </div>
         )}
 
-        {/* Barcode */}
+        {/* Enhanced Barcode */}
         {labelConfig.includeBarcode && (
           <div className="mt-auto">
             <div className="border-t border-black pt-2">
-              {generateBarcode(order.order_number)}
-              <p className="text-center text-xs mt-1">{order.order_number}</p>
+              {barcodeDataURL ? (
+                <div className="flex flex-col items-center">
+                  <img
+                    src={barcodeDataURL || "/placeholder.svg"}
+                    alt={`Barcode: ${order.order_number}`}
+                    className="max-w-full h-auto"
+                    style={{
+                      imageRendering: "pixelated",
+                      filter: "contrast(1.2)", // Enhance contrast for better scanning
+                    }}
+                  />
+                  <p className="text-center text-xs mt-1 font-bold tracking-wider">{order.order_number}</p>
+                  {labelConfig.scannerOptimized && (
+                    <p className="text-center text-xs text-green-600 mt-1">CODE128 - Scanner Ready</p>
+                  )}
+                </div>
+              ) : (
+                <div className="text-center text-xs text-red-600">Barcode generation failed</div>
+              )}
             </div>
           </div>
         )}
@@ -144,6 +164,7 @@ export function ShippingLabel({ order, labelConfig, className }: ShippingLabelPr
         {/* Footer */}
         <div className="text-xs text-center mt-2 pt-2 border-t border-black">
           <p>Generated: {new Date().toLocaleDateString()}</p>
+          {labelConfig.scannerOptimized && <p className="text-green-600">Industry Standard Compatible</p>}
         </div>
       </div>
     </div>
