@@ -3,7 +3,7 @@
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { Badge } from "@/components/ui/badge"
-import { Home, Package, QrCode, User, History } from "lucide-react"
+import { Home, Package, QrCode, User } from "lucide-react"
 
 interface BottomNavigationProps {
   className?: string
@@ -33,12 +33,6 @@ export function BottomNavigation({ className }: BottomNavigationProps) {
       badge: "3", // This could be dynamic based on active orders
     },
     {
-      name: "History",
-      href: "/driver/deliveries",
-      icon: History,
-      badge: null,
-    },
-    {
       name: "Profile",
       href: "/driver/profile",
       icon: User,
@@ -58,7 +52,7 @@ export function BottomNavigation({ className }: BottomNavigationProps) {
         className,
       )}
     >
-      <div className="grid grid-cols-5 h-16 max-w-lg mx-auto">
+      <div className="grid grid-cols-4 h-16 max-w-lg mx-auto">
         {navigationItems.map((item) => {
           const isActive =
             pathname === item.href ||
