@@ -1,0 +1,195 @@
+export interface QRCodeOptions {
+  size: number
+  margin: number
+  color: {
+    dark: string
+    light: string
+  }
+  errorCorrectionLevel: "L" | "M" | "Q" | "H"
+}
+
+export const defaultQROptions: QRCodeOptions = {
+  size: 100,
+  margin: 1,
+  color: {
+    dark: "#000000",
+    light: "#FFFFFF",
+  },
+  errorCorrectionLevel: "M",
+}
+
+// Generate QR code data for an order
+export function generateQRCodeData(order: any): string {
+  const qrData = {
+    orderNumber: order.order_number,
+    customerName: order.customer_name,
+    deliveryAddress: order.delivery_address,
+    status: order.status,
+    priority: order.priority,
+    createdAt: order.created_at,
+    trackingUrl: `${process.env.NEXT_PUBLIC_APP_URL || "https://your-domain.com"}/track/${order.order_number}`,
+  }
+
+  return JSON.stringify(qrData)
+}
+
+// Generate QR code using external service as fallback
+export async function generateTrackingQRCode(order: any): Promise<string> {
+  try {
+    const trackingData = generateQRCodeData(order)
+    const encodedData = encodeURIComponent(trackingData)
+
+    // Use QR Server API as a reliable fallback
+    const qrCodeUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodedData}&ecc=H&format=png`
+
+    // Test if the URL is accessible
+    const response = await fetch(qrCodeUrl, { method: "HEAD" })
+    if (response.ok) {
+      return qrCodeUrl
+    } else {
+      throw new Error("QR service unavailable")
+    }
+  } catch (error) {
+    console.warn("QR code generation failed, using fallback:", error)
+    // Return a simple data URL with order number as fallback
+    return generateFallbackQRCode(order.order_number)
+  }
+}
+
+// Generate a simple fallback QR code using canvas
+function generateFallbackQRCode(orderNumber: string): string {
+  try {
+    // Create a simple canvas-based QR code placeholder
+    const canvas = document.createElement("canvas")
+    canvas.width = 120
+    canvas.height = 120
+    const ctx = canvas.getContext("2d")
+
+    if (!ctx) {
+      return generateTextQRCode(orderNumber)
+    }
+
+    // Fill background
+    ctx.fillStyle = "#FFFFFF"
+    ctx.fillRect(0, 0, 120, 120)
+
+    // Draw border
+    ctx.strokeStyle = "#000000"
+    ctx.lineWidth = 2
+    ctx.strokeRect(5, 5, 110, 110)
+
+    // Draw simple pattern
+    ctx.fillStyle = "#000000"
+    for (let i = 0; i < 10; i++) {
+      for (let j = 0; j < 10; j++) {
+        if ((i + j) % 2 === 0) {
+          ctx.fillRect(10 + i * 10, 10 + j * 10, 8, 8)
+        }
+      }
+    }
+
+    // Add order number text
+    ctx.fillStyle = "#000000"
+    ctx.font = "8px Arial"
+    ctx.textAlign = "center"
+    ctx.fillText(orderNumber, 60, 65)
+
+    return canvas.toDataURL("image/png")
+  } catch (error) {
+    console.warn("Canvas QR code generation failed:", error)
+    return generateTextQRCode(orderNumber)
+  }
+}
+
+// Generate a text-based QR code as final fallback
+function generateTextQRCode(orderNumber: string): string {
+  // Create a simple SVG QR code placeholder
+  const svg = `
+    <svg width="120" height="120" xmlns="http://www.w3.org/2000/svg">
+      <rect width="120" height="120" fill="white" stroke="black" stroke-width="2"/>
+      <text x="60" y="60" text-anchor="middle" font-family="Arial" font-size="10" fill="black">${orderNumber}</text>
+      <text x="60" y="75" text-anchor="middle" font-family="Arial" font-size="8" fill="black">QR Code</text>
+    </svg>
+  `
+
+  return `data:image/svg+xml;base64,${btoa(svg)}`
+}
+
+// Generate simple barcode pattern (Code 128 style)
+export function generateBarcodePattern(text: string): string {
+  // Simple barcode representation using ASCII characters
+  // In a real implementation, you'd use a proper barcode library
+  const patterns = {
+    "0": "|||  | ||",
+    "1": "||  ||| |",
+    "2": "|| |||  |",
+    "3": "|||||   |",
+    "4": "|   |||||",
+    "5": "||   ||||",
+    "6": "|||   |||",
+    "7": "||||   ||",
+    "8": "|||||   |",
+    "9": "|   |||||",
+    A: "|| ||| ||",
+    B: "||| || ||",
+    C: "|||| | ||",
+    D: "|| |||| |",
+    E: "||| ||| |",
+    F: "|||| ||| ",
+    G: "| |||| ||",
+    H: "|| | ||||",
+    I: "||| | |||",
+    J: "|| || |||",
+    K: "| ||| |||",
+    L: "|| ||| ||",
+    M: "||| ||| |",
+    N: "| |||| ||",
+    O: "|| |||| |",
+    P: "||| |||| ",
+    Q: "| | ||||||",
+    R: "|| | |||||",
+    S: "||| | ||||",
+    T: "| || |||||",
+    U: "||||| | ||",
+    V: "|||||| | |",
+    W: "||||| || |",
+    X: "| ||||| ||",
+    Y: "|| ||||| |",
+    Z: "||| ||||| ",
+    "-": "| || || ||",
+    " ": "   ||   ||",
+  }
+
+  let barcode = "|| " // Start pattern
+
+  for (const char of text.toUpperCase()) {
+    barcode += (patterns[char as keyof typeof patterns] || patterns[" "]) + " "
+  }
+
+  barcode += " ||" // End pattern
+
+  return barcode
+}
+
+// Validate QR code data
+export function validateQRCodeData(data: string): boolean {
+  try {
+    const parsed = JSON.parse(data)
+    return !!(parsed.orderNumber && parsed.customerName && parsed.deliveryAddress)
+  } catch {
+    return false
+  }
+}
+
+// Extract order information from QR code data
+export function parseQRCodeData(data: string): any | null {
+  try {
+    const parsed = JSON.parse(data)
+    if (validateQRCodeData(data)) {
+      return parsed
+    }
+    return null
+  } catch {
+    return null
+  }
+}
