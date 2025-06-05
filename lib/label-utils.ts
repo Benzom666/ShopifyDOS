@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf"
-import { generateTrackingQRCode, generateShippingBarcode } from "@/lib/qr-code-generator"
+import { generateTrackingQRCode, generatePDFBarcodePattern } from "@/lib/qr-code-generator"
 
 // Label configuration types
 export interface LabelConfig {
@@ -139,21 +139,30 @@ async function generateLabelPDF(order: any): Promise<void> {
       })
     }
 
-    // Barcode
-    pdf.setFontSize(10)
-    pdf.setFont("courier", "normal")
-    const barcodeDataURL = generateShippingBarcode(order.order_number)
-    if (barcodeDataURL.startsWith("data:")) {
-      pdf.addImage(barcodeDataURL, "SVG", 10, 125, 80, 20)
-    } else {
-      // Fallback to text if SVG fails
-      pdf.setFont("courier", "normal")
-      pdf.text(order.order_number, 35, 140)
-    }
+    // Enhanced Barcode - PDF Compatible
+    try {
+      const barcodeDataURL = await generatePDFBarcodePattern(order.order_number, "handheld")
+      if (barcodeDataURL && barcodeDataURL.startsWith("data:image/png")) {
+        // Add barcode image
+        pdf.addImage(barcodeDataURL, "PNG", 10, 120, 80, 15)
 
-    pdf.setFontSize(8)
-    pdf.setFont("helvetica", "bold")
-    pdf.text(order.order_number, 35, 140)
+        // Add order number text below barcode
+        pdf.setFontSize(8)
+        pdf.setFont("helvetica", "bold")
+        pdf.text(order.order_number, 50, 138)
+      } else {
+        // Fallback to text only
+        pdf.setFontSize(10)
+        pdf.setFont("courier", "normal")
+        pdf.text(order.order_number, 35, 135)
+      }
+    } catch (error) {
+      console.warn("Barcode generation failed, using text fallback:", error)
+      // Text fallback
+      pdf.setFontSize(10)
+      pdf.setFont("courier", "normal")
+      pdf.text(order.order_number, 35, 135)
+    }
 
     // Footer
     pdf.setFontSize(6)
@@ -261,21 +270,30 @@ async function generateBulkLabelsPDF(orders: any[]): Promise<void> {
         })
       }
 
-      // Barcode
-      pdf.setFontSize(10)
-      pdf.setFont("courier", "normal")
-      const barcodeDataURL = generateShippingBarcode(order.order_number)
-      if (barcodeDataURL.startsWith("data:")) {
-        pdf.addImage(barcodeDataURL, "SVG", 10, 125, 80, 20)
-      } else {
-        // Fallback to text if SVG fails
-        pdf.setFont("courier", "normal")
-        pdf.text(order.order_number, 35, 140)
-      }
+      // Enhanced Barcode - PDF Compatible
+      try {
+        const barcodeDataURL = await generatePDFBarcodePattern(order.order_number, "handheld")
+        if (barcodeDataURL && barcodeDataURL.startsWith("data:image/png")) {
+          // Add barcode image
+          pdf.addImage(barcodeDataURL, "PNG", 10, 120, 80, 15)
 
-      pdf.setFontSize(8)
-      pdf.setFont("helvetica", "bold")
-      pdf.text(order.order_number, 35, 140)
+          // Add order number text below barcode
+          pdf.setFontSize(8)
+          pdf.setFont("helvetica", "bold")
+          pdf.text(order.order_number, 50, 138)
+        } else {
+          // Fallback to text only
+          pdf.setFontSize(10)
+          pdf.setFont("courier", "normal")
+          pdf.text(order.order_number, 35, 135)
+        }
+      } catch (error) {
+        console.warn("Barcode generation failed, using text fallback:", error)
+        // Text fallback
+        pdf.setFontSize(10)
+        pdf.setFont("courier", "normal")
+        pdf.text(order.order_number, 35, 135)
+      }
 
       // Footer
       pdf.setFontSize(6)
@@ -299,7 +317,7 @@ async function printLabel(order: any): Promise<void> {
 
   try {
     const qrCodeDataURL = await generateTrackingQRCode(order)
-    const barcodePattern = generateShippingBarcode(order.order_number)
+    const barcodePattern = await generatePDFBarcodePattern(order.order_number, "handheld")
 
     const labelHTML = createPrintableLabelHTML(order, qrCodeDataURL, barcodePattern)
 
@@ -357,7 +375,7 @@ async function printBulkLabels(orders: any[]): Promise<void> {
     for (const order of orders) {
       try {
         const qrCodeDataURL = await generateTrackingQRCode(order)
-        const barcodePattern = generateShippingBarcode(order.order_number)
+        const barcodePattern = await generatePDFBarcodePattern(order.order_number, "handheld")
         const labelHTML = createPrintableLabelHTML(order, qrCodeDataURL, barcodePattern)
         labelsHTML += `<div class="page-break">${labelHTML}</div>`
       } catch (error) {
@@ -497,7 +515,11 @@ function createPrintableLabelHTML(order: any, qrCodeDataURL: string, barcodePatt
       
       <!-- Enhanced Barcode -->
       <div style="margin-top: auto; border-top: 1px solid black; padding-top: 2mm; text-align: center;">
-        <img src="${generateShippingBarcode(order.order_number)}" alt="Barcode" style="max-width: 80mm; height: auto; image-rendering: pixelated;" />
+        ${
+          barcodePattern && barcodePattern.startsWith("data:")
+            ? `<img src="${barcodePattern}" alt="Barcode" style="max-width: 80mm; height: auto; image-rendering: pixelated;" />`
+            : `<div style="font-family: 'Courier New', monospace; font-size: 8px; letter-spacing: 1px; padding: 2mm; border: 1px solid #ccc; background: #f9f9f9;">${order.order_number}</div>`
+        }
         <div style="font-size: 9px; font-weight: bold; margin-top: 1mm;">${order.order_number}</div>
         <div style="font-size: 6px; color: #666; margin-top: 1mm;">CODE128 - Scanner Ready</div>
       </div>

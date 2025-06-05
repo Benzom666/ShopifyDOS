@@ -505,6 +505,89 @@ export function generateBarcodeAsCanvas(text: string, config: BarcodeConfig = de
   return canvas
 }
 
+// Generate barcode as PNG data URL for PDF compatibility
+export function generateBarcodeAsPNG(text: string, config: BarcodeConfig = defaultBarcodeConfig): Promise<string> {
+  return new Promise((resolve, reject) => {
+    try {
+      const canvas = generateBarcodeAsCanvas(text, config)
+
+      // Convert canvas to PNG
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            reject(new Error("Failed to convert canvas to blob"))
+            return
+          }
+
+          const reader = new FileReader()
+          reader.onload = () => {
+            resolve(reader.result as string)
+          }
+          reader.onerror = () => {
+            reject(new Error("Failed to read blob as data URL"))
+          }
+          reader.readAsDataURL(blob)
+        },
+        "image/png",
+        1.0,
+      )
+    } catch (error) {
+      reject(error)
+    }
+  })
+}
+
+// Generate optimized barcode for PDF documents
+export async function generatePDFBarcode(
+  text: string,
+  scannerType: "handheld" | "fixed" | "mobile" | "industrial" = "handheld",
+): Promise<{ dataURL: string; config: BarcodeConfig; quality: any }> {
+  let config: BarcodeConfig
+
+  switch (scannerType) {
+    case "handheld":
+      config = {
+        ...BARCODE_PRESETS.PACKAGE_TRACKING,
+        width: 3,
+        height: 60, // Reduced height for PDF
+        quiet: 15,
+      }
+      break
+    case "fixed":
+      config = {
+        ...BARCODE_PRESETS.SHIPPING_LABEL,
+        width: 2,
+        height: 50, // Reduced height for PDF
+        quiet: 12,
+      }
+      break
+    case "mobile":
+      config = {
+        ...BARCODE_PRESETS.MOBILE_SCANNER,
+        width: 4,
+        height: 70, // Reduced height for PDF
+        quiet: 20,
+      }
+      break
+    case "industrial":
+      config = {
+        ...BARCODE_PRESETS.PACKAGE_TRACKING,
+        width: 4,
+        height: 80, // Reduced height for PDF
+        quiet: 25,
+        fontSize: 12,
+      }
+      break
+    default:
+      config = BARCODE_PRESETS.PACKAGE_TRACKING
+  }
+
+  const quality = validateBarcodeQuality(text, config)
+  const dataURL = await generateBarcodeAsPNG(text, config)
+
+  return { dataURL, config, quality }
+}
+
 // Validate barcode readability
 export function validateBarcodeQuality(
   text: string,

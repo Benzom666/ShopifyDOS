@@ -137,6 +137,89 @@ export function generateBarcodePattern(
   }
 }
 
+// Generate barcode specifically for PDF documents
+export async function generatePDFBarcodePattern(
+  text: string,
+  scannerType: "handheld" | "fixed" | "mobile" | "industrial" = "handheld",
+): Promise<string> {
+  try {
+    const { generatePDFBarcode } = await import("./barcode-generator")
+    const result = await generatePDFBarcode(text, scannerType)
+
+    // Log quality warnings for debugging
+    if (result.quality.warnings.length > 0) {
+      console.warn(`Barcode quality warnings for ${text}:`, result.quality.warnings)
+    }
+
+    return result.dataURL
+  } catch (error) {
+    console.error("PDF barcode generation failed, using fallback:", error)
+    return generateFallbackBarcodeAsPNG(text)
+  }
+}
+
+// Generate fallback barcode as PNG for PDF compatibility
+function generateFallbackBarcodeAsPNG(text: string): string {
+  try {
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+
+    if (!ctx) {
+      return generateTextBarcode(text)
+    }
+
+    // Set canvas size
+    canvas.width = 300
+    canvas.height = 80
+
+    // Fill background
+    ctx.fillStyle = "#FFFFFF"
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    // Draw simple barcode pattern
+    ctx.fillStyle = "#000000"
+    const barWidth = 2
+    const barHeight = 50
+    const startX = 20
+    const startY = 10
+
+    // Generate simple pattern based on text
+    for (let i = 0; i < text.length && i < 40; i++) {
+      const charCode = text.charCodeAt(i)
+      const pattern = charCode % 4 // 0-3 pattern
+
+      for (let j = 0; j < 4; j++) {
+        if ((pattern >> j) & 1) {
+          ctx.fillRect(startX + (i * 4 + j) * barWidth, startY, barWidth, barHeight)
+        }
+      }
+    }
+
+    // Add text
+    ctx.fillStyle = "#000000"
+    ctx.font = "12px monospace"
+    ctx.textAlign = "center"
+    ctx.fillText(text, canvas.width / 2, startY + barHeight + 20)
+
+    return canvas.toDataURL("image/png")
+  } catch (error) {
+    console.warn("Canvas fallback barcode generation failed:", error)
+    return generateTextBarcode(text)
+  }
+}
+
+// Generate text-based barcode as final fallback
+function generateTextBarcode(text: string): string {
+  const svg = `
+    <svg width="300" height="80" xmlns="http://www.w3.org/2000/svg">
+      <rect width="300" height="80" fill="white" stroke="black" stroke-width="1"/>
+      <text x="150" y="40" text-anchor="middle" font-family="monospace" font-size="14" fill="black">${text}</text>
+      <text x="150" y="60" text-anchor="middle" font-family="Arial" font-size="10" fill="black">Barcode</text>
+    </svg>
+  `
+  return `data:image/svg+xml;base64,${btoa(svg)}`
+}
+
 // Fallback barcode generation for compatibility
 function generateFallbackBarcode(text: string): string {
   // Simple barcode representation using ASCII characters as fallback
